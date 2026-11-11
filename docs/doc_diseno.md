@@ -1,462 +1,228 @@
 # Documento de diseño — Cotizagro
 
-> Fecha: 10/11/2026  
-> Versión: 0.1
+> Fecha: 10/11/2026
+> Versión: 0.2
 
 ---
 
 ## 1. Descripción
 
-Es un proyecto de CLI que muestra un resumen de los precios de hacienda bovina en Argentina, agrupándolos por:
-- Destino (faena o invernada).
-- Peso/categoría del bovino.
+Proyecto de consola (CLI) que muestra un resumen de los precios de hacienda bovina en Argentina, agrupados por:
 
+- Destino (invernada o faena).
+- Categoría y peso del animal.
+
+Un recolector obtiene los precios de la fuente una vez por día y los guarda en un archivo JSON. Un servidor entrega esos datos y un cliente de consola los muestra.
 
 ## 2. Objetivo de aprendizaje
 
-Quiero practicar los temas más importantes vistos en el curso de fundamentos de Node.js de "Jonmircha" (youtube), junto a cualquier otro tema importante para entender el funcionamiento básico de Node.  
-Ejemplos:
-- Inicio de un proyecto básico con node (npm init, configuración del package.json, instalación de dependencias del proyecto y de desarrollo, uso de scripts personalizados, entre otros).
-- Uso de npm.
-- Uso de módulos comunes de Node (como fs o fs/promises, path, readline).
-- Uso de dependencias sencillas como chalk.
-- Objetos importantes de Node como "globalThis" o "process".
-- Configuración básica de un servidor con Node vanilla (si es posible y apropiado hacerlo en este proyecto).
+Practicar los temas del curso de fundamentos de Node.js de jonmircha y los conceptos básicos del backend:
 
+- Iniciar un proyecto con Node: `npm init`, `package.json`, dependencias de producción y de desarrollo, scripts personalizados.
+- Uso de npm.
+- Módulos nativos de Node: `fs/promises`, `path`, `readline`, `http`.
+- Dependencias sencillas de terceros, como `chalk`.
+- Objetos globales de Node: `globalThis`, `process`.
+- Solicitudes HTTP con `fetch` y `async/await`.
+- Un servidor con el módulo nativo `http`, sin frameworks.
+- Separar responsabilidades: obtener datos, guardarlos, entregarlos y mostrarlos.
 
 ## 3. Alcance
 
-**Sí hace:**
+**Sí hace (v1):**
 
-- Muestra los precios actuales, promedios, mínimos y máximos para cada categoría.
+- Obtiene los precios de la fuente una vez por día y los guarda procesados.
+- Muestra, para cada categoría simplificada: precio actual, promedio, mínimo y máximo.
+- Muestra la unidad de cada grupo ($/kg o $/cabeza) y la fecha de actualización de los datos.
 
 **No hace (por ahora):**
 
-- Mostrar tendencias alcista / bajista basada en el precio histórico comparado al actual.
-- Cotización del dolar y dolar blue hoy.
-- Registrar un bovino con sus datos.
-- Registrar una "tropa" de bovinos con los mismos datos.
-- Listar los bovinos registrados.
-- Actualizar los datos de 1 bovino.
-- Actualizar los datos de muchos bovinos a la vez seleccionando sus IDs.
-- Eliminar el registro de 1 bovino.
-- Eliminar el registro de muchos bovinos a la vez seleccionando sus IDs.
+- Tendencia alcista o bajista.
+- Cotización del dólar oficial y blue.
+- Historial propio de precios (solo se guarda la última consulta).
+- CRUD de la hacienda del productor (registrar, listar, actualizar y eliminar animales o tropas).
 
 ## 4. Fuente de datos
 
+Fuente: API interna no documentada de deCampoaCampo. Es pública (no requiere login), pero puede cambiar sin aviso.
+
 | Endpoint (URL) | Qué devuelve | Unidad |
 |---|---|---|
-| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosInvernada&p=1&m=peso` | Precios de MACHOS para INVERNADA | pesos, dólares y dolares blue |
-| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosInvernada&p=2&m=peso` | Precios de HEMBRAS para INVERNADA | pesos, dólares y dolares blue |
-| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosInvernada&p=3&m=peso` | Precios de VIENTRES para INVERNADA | pesos, dólares y dolares blue |
-| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosGordo` | Precios para FAENA | pesos, dólares y dolares blue |
+| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosInvernada&p=1&m=peso` | Invernada: machos | $/kg |
+| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosInvernada&p=2&m=peso` | Invernada: hembras | $/kg |
+| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosInvernada&p=3&m=peso` | Invernada: vientres | $/cabeza |
+| `https://www.decampoacampo.com/gh_funciones.php?function=getListadoPreciosGordo` | Faena (Mercado de Cañuelas) | $/kg |
+
+Datos de cada subcategoría que se usan: `categoria`, `cantidad_semana_1/2/3` y `precio_semana_1/2/3`.
+
+- Semana 1: semana en curso (ventana móvil de 7 días que termina el día de la consulta).
+- Semana 2: semana pasada.
+- Semana 3: semana anterior a la pasada ("repasada").
 
 ## 5. Reglas de negocio
 
 ### 5.1 Categorías
 
-
-#### 1.1. INVERNADA - MACHOS
 ```
-- Terneros hasta 160 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Terneros -160 Kg.".
+INVERNADA – MACHOS ($/kg)          ← p=1
+  Terneros hasta 160 kg            ← Terneros -160 Kg.
+  Terneros 160-260 kg              ← Terneros 160-180, 180-200, 200-230, 230-260 Kg.
+  Novillitos 260-300 kg            ← Novillitos 260-300 Kg.
+  Novillitos +300 kg               ← Novillitos +300 Kg.
 
-- Terneros 160-260 kg .
-Datos que muestra: Precio Actual, Precio Mínimo Ponderado, Precio Promedio Ponderado, Precio Máximo Ponderado.
-Agrupa categorías: "Terneros 160-180 Kg.", "Terneros 180-200 Kg.", "Terneros 200-230 Kg.", "Terneros 230-260 Kg.".
+INVERNADA – HEMBRAS ($/kg)         ← p=2
+  Terneras hasta 150 kg            ← Terneras -150 Kg.
+  Terneras 150-210 kg              ← Terneras 150-170, 170-190, 190-210 Kg.
+  Vaquillonas 210-290 kg           ← Vaquillonas 210-250, 250-290 Kg.
+  Vaquillonas +290 kg              ← Vaquillonas +290 Kg.
 
-- Novillitos 260-300kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Novillitos 260-300 Kg".
+INVERNADA – VIENTRES ($/cabeza)    ← p=3
+  Vaquillonas (entorar / preñadas) ← Vaquillonas Para Entorar, Vaquillonas Preñadas
+  Vacas preñadas                   ← Vacas Nuevas, 1/2 diente y CUT Preñadas
+  Vacas con cría                   ← Vacas Nuevas, 1/2 diente y CUT con cría
+  Vacas de invernada               ← Vacas de Invernada
 
-- Novillitos +300 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Novillitos +300 Kg.".
+FAENA ($/kg)                       ← getListadoPreciosGordo
+  Novillitos hasta 390 kg          ← Novillitos hasta 390 Kg.
+  Novillos 391-490 kg              ← Novillitos 391/430, Novillos 431/460, Novillos 461/490 Kg.
+  Vaquillonas hasta 390 kg         ← Vaquillonas hasta 390 Kg.
+  Vacas                            ← Vacas Buenas, Vacas Regulares, Vacas Conserva
 ```
-
-#### 1.2. INVERNADA - HEMBRAS
-```
-- Terneras hasta 150 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Terneras -150 Kg."
-
-- Terneras hasta 150-210 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Ponderado, Precio Promedio Ponderado, Precio Máximo Ponderado.
-Agrupa categorías: "Terneras 150-170 Kg.", "Terneras 170-190 Kg.", "Terneras 190-210 Kg.".
-
-- Vaquillonas hasta 210-290 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Ponderado, Precio Promedio Ponderado, Precio Máximo Ponderado.
-Agrupa categorías: "Vaquillonas 210-250 Kg.", "Vaquillonas 250-290 Kg.".
-
-- Vaquillonas hasta +290 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Vaquillonas +290 Kg.".
-```
-
-#### 1.3. INVERNADA - VIENTRES
-```
-- Vaquillonas (para entorar / preñadas).
-Datos que muestra: Precio Actual para entorar, Precio Actual preñada, Tendencia, Variación.
-Agrupa categorías: "Vaquillonas Para Entorar", "Vaquillonas Preñadas".
-
-- Vacas Nuevas (para entorar / preñadas / con cría).
-Datos que muestra: Precio Actual para entorar, Precio Actual preñada, Precio actual con cría, Tendencia, Variación.
-Agrupa categorías: "Vacas de Invernada", "Vacas Nuevas Preñadas", "Vacas Nuevas con cría".
-
-- Vacas 1/2 diente (preñadas / con cría).
-Datos que muestra: Precio Actual preñada, Precio Actual con cría, Tendencia, Variación.
-Agrupa categorías: "Vacas 1/2 diente Preñadas", "Vacas 1/2 diente con cría"
-
-- Vacas CUT (preñadas / con cría).
-Datos que muestra: Precio Actual para entorar, Precio Actual preñada, Tendencia, Variación.
-Agrupa categorías: "Vacas CUT Preñadas", "Vacas CUT con cría".
-```
-
-
-#### 2. FAENA - NOVILLITOS / VAQUILLONAS / VACAS
-```
-- Novillitos hasta 390 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Novillitos hasta 390 Kg.".
-
-- Novillitos 391-490 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Ponderado, Precio Promedio Ponderado, Precio Máximo Ponderado.
-Agrupa categorías: "Novillitos 391/430 Kg.", "Novillos 431/460 Kg.", "Novillos 461/490 Kg.".
-
-- Vaquillonas hasta 390 kg.
-Datos que muestra: Precio Actual, Precio Mínimo Simple, Precio Promedio Simple, Precio Máximo Simple.
-Agrupa categorías: "Vaquillonas hasta 390 Kg.".
-
-- Vacas.
-Datos que muestra: Precio Actual, Precio Mínimo Ponderado, Precio Promedio Ponderado, Precio Máximo Ponderado.
-Agrupa categorías: "Vacas Buenas", "Vacas Regulares", "Vacas Conserva".
-```
-
 
 ### 5.2 Cálculos
 
-#### Datos de precio (Invernada Machos, Invernada Hembras, Faena)
+Todas las categorías usan **la misma fórmula**, tengan una o varias subcategorías.
 
-- **Precio Actual:**
-  - Simple: `data[n].precio_semana_1`
-  - Ponderado: `PW_1`
+**Paso 1: precio ponderado de cada semana (PW).** Para cada semana `s` (1, 2 y 3):
 
-- **Precio Promedio Simple:**  
-`(data[n].precio_semana_1 + data[n].precio_semana_2 + data[n].precio_semana_3) / 3`
+```
+PW_s = Σ (precio_semana_s × cantidad_semana_s) / Σ cantidad_semana_s
+```
 
-- **Precio Promedio Ponderado:**  
-`(PW_1 + PW_2 + PW_3) / 3`
-  - Se calcula el precio ponderado de cada semana y luego se promedian las 3 semanas.
+Si el grupo tiene una sola subcategoría, PW_s es directamente su precio de esa semana.
 
-- **Precio Mínimo Simple:**  
-`min(data[n].precio_semana_1, data[n].precio_semana_2, data[n].precio_semana_3)`
+**Paso 2: datos que se muestran.**
 
-- **Precio Mínimo Ponderado:**  
-`min(PW_1, PW_2, PW_3)`
+- **Actual:** `PW_1`
+- **Promedio:** `(PW_1 + PW_2 + PW_3) / 3`
+- **Mínimo:** `min(PW_1, PW_2, PW_3)`
+- **Máximo:** `max(PW_1, PW_2, PW_3)`
 
-- **Precio Máximo Simple:**  
-`max(data[n].precio_semana_1, data[n].precio_semana_2, data[n].precio_semana_3)`
+**Redondeo:** los cuatro valores se guardan redondeados a pesos enteros.
 
-- **Precio Máximo Ponderado:**  
-`max(PW_1, PW_2, PW_3)`
-
-#### Datos de Vientres (Invernada – Vientres)
-
-- **Precio Actual para entorar:**
-  - Vaquillonas: `data["Vaquillonas Para Entorar"].precio_semana_1`
-  - Vacas Nuevas: `data["Vacas de Invernada"].precio_semana_1`
-
-- **Precio Actual preñada:**
-  - Vaquillonas: `data["Vaquillonas Preñadas"].precio_semana_1`
-  - Vacas Nuevas: `data["Vacas Nuevas Preñadas"].precio_semana_1`
-  - Vacas 1/2 diente: `data["Vacas 1/2 diente Preñadas"].precio_semana_1`
-  - Vacas CUT: `data["Vacas CUT Preñadas"].precio_semana_1`
-
-- **Precio Actual con cría:**
-  - Vacas Nuevas: `data["Vacas Nuevas con cría"].precio_semana_1`
-  - Vacas 1/2 diente: `data["Vacas 1/2 diente con cría"].precio_semana_1`
-  - Vacas CUT: `data["Vacas CUT con cría"].precio_semana_1`
-
-- **Tendencia:** `Si Variación < 0 → "Bajista"; si Variación > 0 → "Alcista"; si Variación = 0 → "Estable"`
-
-- **Variación:** `(Σ_j data[j].variacion_precio_semana_1) / N`
-  - Donde `j` recorre las subcategorías internas del bloque Vientres y `N` es la cantidad de subcategorías.
-  - Vaquillonas: `(data["Vaquillonas Para Entorar"].variacion_precio_semana_1 + data["Vaquillonas Preñadas"].variacion_precio_semana_1) / 2`
-  - Vacas Nuevas: promedio simple de `Vacas de Invernada`, `Vacas Nuevas Preñadas` y `Vacas Nuevas con cría`.
-  - Vacas 1/2 diente: promedio simple de `Vacas 1/2 diente Preñadas` y `Vacas 1/2 diente con cría`.
-  - Vacas CUT: promedio simple de `Vacas CUT Preñadas` y `Vacas CUT con cría`.
+**Semanas sin ventas:** si en una semana la suma de cantidades del grupo es 0, esa semana no se usa. Promedio, mínimo y máximo se calculan con las semanas que sí tienen ventas. Si la semana 1 no tiene ventas, "actual" se guarda como `null`.
 
 ### 5.3 Exclusiones
 
-Se descartan los datos de la fuente relacionados al precio del dolar y los precios de cada categoría en dolares, dolares blue y los "precios formateados".
-El motivo es que mostrar datos rellacionados a la cotización del dolar hoy es una funcionalidad futura, y los precios de hacienda en dolares y/o formateados se descartan debido a que capturamos los precios en pesos en números sin formato, y formateamos al momento de entregar.
+Se descartan de la fuente:
+
+- `cotizacion_*` (dólar): funcionalidad futura.
+- `precio_*_usd`, `precio_*_blue`: se guardan solo los precios en pesos.
+- `*_formatted`: se guardan números sin formato; el formato se aplica al mostrar.
+- `variacion_*`: no se usan en la v1 (sin tendencia).
+- Categorías "Holando": raza lechera, fuera del alcance.
 
 ## 6. Formato de los datos guardados (precios.json)
 
+Se guarda **solo la última consulta**. Cada ejecución del recolector reemplaza el archivo completo.
+
+Ejemplo (valores calculados con datos reales del 09/11/2026; se muestran algunas categorías):
+
 ```json
-[
-  {
-    "id": 1,
-    "semana": "2026-11-09",
-    "fecha_registro": "2026-11-09",
-    "invernada": [
-      {
-        "categoria": "Terneros hasta 160 kg.",
-        "grupo": "machos",
-        "tipo_calculo": "simple",
-        "precio_actual": 6490,
-        "precio_minimo_simple": 6410,
-        "precio_promedio_simple": 6506.67,
-        "precio_maximo_simple": 6620
-      },
-      {
-        "categoria": "Terneros 160-260 kg.",
-        "grupo": "machos",
-        "tipo_calculo": "ponderado",
-        "precio_actual": 5832.29,
-        "precio_minimo_ponderado": 5832.29,
-        "precio_promedio_ponderado": 5863.6,
-        "precio_maximo_ponderado": 5925.55
-      },
-      {
-        "categoria": "Novillitos 260-300 kg.",
-        "grupo": "machos",
-        "tipo_calculo": "simple",
-        "precio_actual": 5220,
-        "precio_minimo_simple": 5220,
-        "precio_promedio_simple": 5246.67,
-        "precio_maximo_simple": 5290
-      },
-      {
-        "categoria": "Novillitos +300 kg.",
-        "grupo": "machos",
-        "tipo_calculo": "simple",
-        "precio_actual": 4970,
-        "precio_minimo_simple": 4970,
-        "precio_promedio_simple": 5100,
-        "precio_maximo_simple": 5170
-      },
-      {
-        "categoria": "Terneras hasta 150 kg.",
-        "grupo": "hembras",
-        "tipo_calculo": "simple",
-        "precio_actual": 6180,
-        "precio_minimo_simple": 5960,
-        "precio_promedio_simple": 6110,
-        "precio_maximo_simple": 6190
-      },
-      {
-        "categoria": "Terneras 150-210 kg.",
-        "grupo": "hembras",
-        "tipo_calculo": "ponderado",
-        "precio_actual": 5617,
-        "precio_minimo_ponderado": 5617,
-        "precio_promedio_ponderado": 5686.94,
-        "precio_maximo_ponderado": 5821.95
-      },
-      {
-        "categoria": "Vaquillonas 210-290 kg.",
-        "grupo": "hembras",
-        "tipo_calculo": "ponderado",
-        "precio_actual": 5132.29,
-        "precio_minimo_ponderado": 5132.29,
-        "precio_promedio_ponderado": 5179.94,
-        "precio_maximo_ponderado": 5209.89
-      },
-      {
-        "categoria": "Vaquillonas +290 kg.",
-        "grupo": "hembras",
-        "tipo_calculo": "simple",
-        "precio_actual": 4490,
-        "precio_minimo_simple": 4490,
-        "precio_promedio_simple": 4670,
-        "precio_maximo_simple": 4870
-      },
-      {
-        "categoria": "Vaquillonas (para entorar / preñadas)",
-        "grupo": "vientres",
-        "tipo_calculo": "vientres",
-        "precio_actual_para_entorar": 1502000,
-        "precio_actual_prenada": 2493000,
-        "tendencia": "Bajista",
-        "variacion": -201500
-      },
-      {
-        "categoria": "Vacas Nuevas (para entorar / preñadas / con cría)",
-        "grupo": "vientres",
-        "tipo_calculo": "vientres",
-        "precio_actual_para_entorar": 1266000,
-        "precio_actual_prenada": 2084000,
-        "precio_actual_con_cria": 1375000,
-        "tendencia": "Bajista",
-        "variacion": -167666.67
-      },
-      {
-        "categoria": "Vacas 1/2 diente (preñadas / con cría)",
-        "grupo": "vientres",
-        "tipo_calculo": "vientres",
-        "precio_actual_prenada": 2162000,
-        "precio_actual_con_cria": 1230000,
-        "tendencia": "Bajista",
-        "variacion": -59500
-      },
-      {
-        "categoria": "Vacas CUT (preñadas / con cría)",
-        "grupo": "vientres",
-        "tipo_calculo": "vientres",
-        "precio_actual_prenada": 1531000,
-        "precio_actual_con_cria": 1042000,
-        "tendencia": "Bajista",
-        "variacion": -49500
-      }
-    ],
-    "faena": [
-      {
-        "categoria": "Novillitos hasta 390 kg.",
-        "tipo_calculo": "simple",
-        "precio_actual": 4670,
-        "precio_minimo_simple": 4670,
-        "precio_promedio_simple": 4756.67,
-        "precio_maximo_simple": 4830
-      },
-      {
-        "categoria": "Novillitos 391-490 kg.",
-        "tipo_calculo": "ponderado",
-        "precio_actual": 4431.09,
-        "precio_minimo_ponderado": 4431.09,
-        "precio_promedio_ponderado": 4469.82,
-        "precio_maximo_ponderado": 4535.06
-      },
-      {
-        "categoria": "Vaquillonas hasta 390 kg.",
-        "tipo_calculo": "simple",
-        "precio_actual": 4600,
-        "precio_minimo_simple": 4560,
-        "precio_promedio_simple": 4623.33,
-        "precio_maximo_simple": 4710
-      },
-      {
-        "categoria": "Vacas",
-        "tipo_calculo": "ponderado",
-        "precio_actual": 2999.49,
-        "precio_minimo_ponderado": 2999.49,
-        "precio_promedio_ponderado": 3091.8,
-        "precio_maximo_ponderado": 3157.95
-      }
-    ]
+{
+  "actualizado": "2026-11-10T09:00:00.000Z",
+  "invernada": {
+    "machos": {
+      "unidad": "$/kg",
+      "categorias": [
+        { "nombre": "Terneros hasta 160 kg", "actual": 6490, "promedio": 6507, "minimo": 6410, "maximo": 6620 },
+        { "nombre": "Terneros 160-260 kg", "actual": 5879, "promedio": 5879, "minimo": 5833, "maximo": 5926 }
+      ]
+    },
+    "hembras": {
+      "unidad": "$/kg",
+      "categorias": []
+    },
+    "vientres": {
+      "unidad": "$/cabeza",
+      "categorias": [
+        { "nombre": "Vacas preñadas", "actual": 2075704, "promedio": 2076538, "minimo": 2016641, "maximo": 2137268 }
+      ]
+    }
+  },
+  "faena": {
+    "unidad": "$/kg",
+    "categorias": []
   }
-]
+}
 ```
 
-**Campos y para qué sirve cada uno:**
+**Campos:**
 
-**Datos Generales del registro**
-1. **id:**  
-Identificador único de cada registro semanal.  
-Si no existen registros, se genera empezando con "1".
-Si existen registros, se utiliza alguna función "max(id)+1" para añadir un nuevo registro.
-2. **semana:**  
-Clave que contiene el valor de "semana_actual.hasta" que viene dentro del JSON de la respuesta del endpoint de "invernada" (o el campo "hoy" del endpoint de "faena").
-La función de este campo es lograr generar un solo registro por semana, pero pudiendo hacer actualizaciones a este registro durante la semana.  
-Su funcionamiento es el siguiente:
-Si no existe ningún registro en el archivo que funciona de base de datos dentro del servidor con el campo "semana" === "hoy" o "semana_actual.hasta" -> entonces se genera un nuevo "id" y se guarda un nuevo registro.
-Si ya existe un registro con ese valor de "hoy" o "semana_actual.hasta" dentro del campo "semana", entonces se "pisa" ese registro, actuaizando los datos, pero sin generar una nueva inserción dentro del archivo (pudiendo asi, actualizar datos que cambien en el endopoint durante la semana, pero sin generar mas de 1 registro semanal en el servidor).
-3. **fecha_registro:**  
-Fecha real en la que se guardó el registro, generada internamente con new Date() (se actualiza cada vez que se genera un nuevo registro, o se pisa uno existente).
-4. **invernada:**  
-Array de objetos que contiene 1 objeto por cada grupo especificado en el bloque "5.1" de destino invernada.
-5. **faena:**
-Array de objetos que contiene 1 objeto por cada grupo especificado en el bloque "5.1" de destino faena.
-
----
-
-**Datos Compartidos de objetos dentro de "faena" e "invernada"**
-1. **categoria:**  
-Nombre de cada categoría especificada en el bloque 5.1.
-2. **tipo_calculo:**  
-Nombre que permitirá dentro del servidor distinguir los nombres de los campos internos de cada objeto dentro de "faena" e "invernada" rapidamente sin tener que consultarlos internamente. Si su tipo_calculo es "simple", sus campos se nombran como "nombrecampo_simple", si su "tipo_calculo" es "ponderado", sus campos se nombran como "nombrecampo_ponderado", y si su "tipo_calculo" es "vientres", entonces son "precio_actual_para_entorar / precio_actual_prenada / precio_actual_con_cria + tendencia / variacion".
-3. **precio_actual:**  
-Proviene de "data[n].precio_semana_1".
-3. **precio_minimo_simple:**  
-Mínimo de los 3 precios semanales de esa categoría única (para aquellos grupos que tienen 1 sola categoría).
-3. **precio_promedio_simple:**  
-Precio promedio de los 3 precios semanales de esa única categoría.
-3. **precio_maximo_simple:**  
-Máximo de los 3 precios semanales de esa categoría única (para aquellos grupos que tienen 1 sola categoría).
-3. **precio_minimo_ponderado:**  
-Mínimo de los 3 precios ponderados semanales (minimo ponderado de cada subcategoría del endpoint que agrupa esta categoría en el servidor).
-3. **precio_promedio_ponderado:**
-Promedio de los 3 precios ponderados semanales (minimo ponderado de cada subcategoría del endpoint que agrupa esta categoría en el servidor).
-3. **precio_maximo_ponderado:**
-Máximo de los 3 precios ponderados semanales (minimo ponderado de cada subcategoría del endpoint que agrupa esta categoría en el servidor).
-
----
-
-**Datos exclusivos de los objetos dentro de "invernada"**
-1. **grupo:**  
-(solo existe dentro de los objetos de "invernada").
-Permite agrupar en consola los objetos de invernada de una manera simple (sin tener que consultar dentro del objeto), usando los valores "machos", "hembras", "vientres".
-1. **precio_actual_para_entorar:**  
-(solo en categoría: "vientres").
-Se obtiene de "precio_semana_1" en las categorías que terminen en "Para Entorar" dentro del array de objetos "data" del endpoint de "vientres".
-1. **precio_actual_prenada:**  
-(solo en categoría: "vientres").  
-Se obtiene de "precio_semana_1" en las categorías que terminen en "Preñadas" dentro del array de objetos "data" del endpoint de "vientres".
-1. **precio_actual_con_cria:**  
-(solo en categoría: "vientres").  
-Se obtiene de "precio_semana_1" en las categorías que terminen en "con cría" dentro del array de objetos "data" del endpoint de "vientres".
-1. **tendencia:**  
-Sus valores son:
-"Bajista" -> si variación < 0.
-"Alcista" -> si variación > 0.
-"Estable" -> si variación = 0.
-1. **variacion:**  
-Promedio simple de "variación_precio_semana_1" de las subcategorías internas del bloque.
-
-
-**Posibles Reglas para el funcionamiento futuro del servidor**
-1. Leer "precios_hacienda.json", si no existe, crear uno arrancando con "[]".
-2. Calcular el campo "semana" con los datos de la API.
-3. Buscar registro con esa semana:
-- Si no existe -> "id" = max(id) + 1, "fecha_registro" = hoy, y un push al array.
-- Si existe -> reemplazar el registro preservando su "id" y actualizando "fecha_registro".
-4. Completar los campos internos de "faena" e "invernada" haciendo los calculos de mínimos/máximos/promedios simples/ponderados correspondientes.
-5. Datos descartados de la API:
-- cotizacion_*
-- precio_*_usd
-- precio_*_bue
-- *_formatted
-- categorías "Holando".
-
+- **actualizado:** fecha y hora en que se ejecutó el recolector (`new Date().toISOString()`). El cliente la muestra para que el usuario sepa de cuándo son los datos.
+- **invernada / faena:** destinos. Invernada se divide en tres grupos (machos, hembras, vientres); faena es un solo grupo.
+- **unidad:** unidad de todos los precios del grupo.
+- **categorias:** lista de categorías simplificadas del grupo, en el orden de la sección 5.1.
+- **nombre:** nombre de la categoría simplificada.
+- **actual, promedio, minimo, maximo:** según la sección 5.2. Siempre con estos mismos nombres, en todos los grupos.
 
 ## 7. Componentes
 
-
 ```
-1. precios_hacienda.json -> archivo que sirve como "base de datos" para los registros semanales.
-
-2. Recolector -> script / función / modulo que se encargara de hacer las solicitudes http al endpoint, procesarlas y guardarlas ya procesadas en "precios_hacienda.json".
-
-3. Servidor -> aplicación en Node que consume los datos que procesa y guarda "recolector", y espera consultas de clientes para mostrarlos de manera fácilmente legible.
-
-4. Cliente de consola -> pide los precios de hacienda al servidor digitando números en consola basándose en opciones que le ofrece el servidor.
+[deCampoaCampo: 4 endpoints]
+            │  1 vez por día
+            ▼
+     [Recolector] ── calcula y guarda ──► [precios.json]
+                                              │ lee
+                                              ▼
+                                         [Servidor http] ◄── pide datos ── [Cliente de consola]
+                                              └──────── responde JSON ──────►
 ```
 
+- **Recolector:** pide los 4 endpoints, aplica las reglas de la sección 5 y escribe `precios.json`.
+- **precios.json:** guarda la última consulta procesada. Funciona como una base de datos mínima.
+- **Servidor:** lee `precios.json` y lo entrega en JSON cuando un cliente lo pide. No da formato ni muestra nada.
+- **Cliente de consola:** muestra un menú, pide los datos al servidor y los presenta legibles (formato de miles, unidad, fecha de actualización).
 
 ## 8. Riesgos
 
 | Qué puede salir mal | Qué hace el programa |
 |---|---|
-| Que el usuario digite una opción inválida | Vuelve a mostrar el panel de opciones |
-| Que la API que nos proporciona los datos deje de funcionar | Muestra un mensaje aclarando que la fuente de datos que consumía el servidor dejó de estar disponible |
-| Que la API cambie la estructura del JSON | Muestra un mensaje aclarando que las fuentes cambiaron y el servidor requiere mantenimiento para seguir funcionando |
+| La fuente no responde (sin internet o caída) | El recolector registra el error y **no toca** `precios.json`. El servidor sigue entregando los últimos datos y el cliente muestra su fecha. |
+| La fuente cambia la estructura del JSON | El recolector valida los campos esperados; si faltan, registra el error y no sobrescribe los datos anteriores. |
+| Una subcategoría o semana sin ventas (cantidad 0) | Se excluye esa semana del cálculo (sección 5.2) para evitar dividir por cero. |
+| Todavía no existe `precios.json` | El servidor responde que aún no hay datos y el cliente lo informa. |
+| El servidor no está encendido | El cliente informa que no pudo conectarse. |
+| El usuario elige una opción inválida | El cliente vuelve a mostrar el menú. |
+| Términos de uso de la fuente | Uso personal y educativo. Para uso comercial futuro: pedir permiso o buscar una fuente oficial. |
 
-## 9. Ideas futuras
+## 9. Preguntas abiertas
 
-> Ideas que surgen en el camino y quedan para después.
+- Al promediar "Vacas preñadas" se pierde la diferencia entre vaca nueva y CUT. ¿Conviene mostrar el rango entre subcategorías, o una tabla edad × situación?
+- ¿"Vacas de invernada" está bien como categoría aparte? Verificar el significado como productor.
 
-- Separar el inicio del programa en 2 funcionalidades principales: 1. "Precios Hacienda HOY" (entra a la funcionalidad que estamos trabajando), "Mi Hacienda" (entra al CRUD de la hacienda propia del productor).
-- Añadir un CRUD muy sencillo para registrar / actualizar / listar / eliminar la hacienda personal de un productor.
-- Pasar el proyecto a express.
-- Usar una base de datos real en lugar de un JSON.
+## 10. Ideas futuras
+
+- Tendencia alcista o bajista con colores (comparando actual y promedio).
+- Mostrar la cantidad de cabezas vendidas como indicador de confianza del precio.
+- Historial propio de precios (un registro por día o por semana).
+- Cotización del dólar y precios en dólares.
+- Definiciones cortas de cada categoría para el productor.
+- Tabla de vientres por edad (nueva, 1/2 diente, CUT) × situación (preñada, con cría).
+- Menú principal con dos opciones: "Precios de hacienda hoy" y "Mi hacienda".
+- CRUD sencillo de la hacienda del productor.
+- Pasar el servidor a Express.
+- Reemplazar el JSON por una base de datos real.
+
+---
+
+## Cambios respecto a v0.1
+
+1. **Una sola fórmula para todas las categorías.** El promedio ponderado de un grupo con una sola subcategoría es igual a su precio, así que "simple" y "ponderado" eran el mismo cálculo. Se eliminaron `tipo_calculo` y los sufijos `_simple` / `_ponderado`.
+2. **Nombres de campos fijos** (`actual`, `promedio`, `minimo`, `maximo`) en todos los grupos, para que el cliente recorra los datos sin preguntar de qué tipo es cada fila.
+3. **Se guarda solo la última consulta.** El campo `semana` no servía como clave semanal porque la "semana actual" de la fuente es una ventana móvil que cambia todos los días. Además, la fuente ya trae tres semanas de historia. Se eliminaron `id` y `semana`; `fecha_registro` pasó a ser `actualizado`.
+4. **Vientres con la misma forma de datos que el resto.** Se quitaron tendencia y variación (estaban en "No hace") y se volvió a la agrupación por situación. La tabla por edad pasó a ideas futuras.
+5. **Unidad por grupo** ($/kg o $/cabeza), para que el cliente la muestre.
+6. **Reglas nuevas:** redondeo a pesos enteros y manejo de semanas sin ventas.
+7. **Riesgos ampliados:** si la fuente falla, se conservan los datos anteriores en vez de mostrar solo un error.
+8. **Responsabilidades separadas:** el servidor entrega JSON; el cliente da formato y muestra.
