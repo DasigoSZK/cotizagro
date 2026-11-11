@@ -1,0 +1,12 @@
+{
+  "name": "cotizagro",
+  "version": "0.0.1",
+  "description": "Pequeña aplicación de CLI para practicar fundamentos de Node.js que solicita, procesa y muestra precios de hacienda bovina en Argentina, agrupados por categoría.",
+  "license": "MIT",
+  "author": "Dasigo Szkamarda",
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
