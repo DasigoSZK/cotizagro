@@ -7,6 +7,9 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
+    "recolector": "node ./src/recolector.js",
+    "servidor": "node ./src/servidor.js",
+    "cliente": "node ./src/cliente.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   }
 }

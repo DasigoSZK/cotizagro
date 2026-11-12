@@ -1,0 +1,1 @@
+console.log("Archivo 'config.js' cargada correctamente.");

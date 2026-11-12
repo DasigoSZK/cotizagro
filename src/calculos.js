@@ -1,0 +1,1 @@
+console.log("Archivo 'calculos.js' cargado correctamente.");

@@ -1,0 +1,1 @@
+console.log("Archivo 'cliente.js' cargado correctamente.");
