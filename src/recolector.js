@@ -23,7 +23,7 @@ export async function obtenerJSON(url) {
 async function guardarJSON(data, nombreArchivo) {
 
     // Construye la ruta absoluta donde se guardará el archivo JSON
-    const absFilePath = path.join(config.absDataDir, nombreArchivo);
+    const absFilePath = path.join(config.paths.dataDir, nombreArchivo);
     // Parsea el objeto data a formato JSON con indentación de 2 espacios
     const jsonData = JSON.stringify(data, null, 2);
 
@@ -39,7 +39,7 @@ async function guardarJSON(data, nombreArchivo) {
 
 try {
     // 1. Obtener el JSON y mostrarlo
-    const json = await obtenerJSON(config.faena);
+    const json = await obtenerJSON(config.urls.faena);
     console.log("JSON obtenido:", json);
 
     // 2. Guardar el JSON obtenido previamente
