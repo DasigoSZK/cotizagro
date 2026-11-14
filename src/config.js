@@ -15,7 +15,7 @@ export default {
     paths:{
         "rootDir": ROOT_DIR,
         "dataDir": path.join(ROOT_DIR, 'data'),
-        "srcDIR": path.join(ROOT_DIR, 'src')
+        "srcDir": path.join(ROOT_DIR, 'src')
     }
 }
 

@@ -38,13 +38,16 @@ async function guardarJSON(data, nombreArchivo) {
 
 
 try {
-    // 1. Obtener el JSON y mostrarlo
-    const json = await obtenerJSON(config.urls.faena);
-    console.log("JSON obtenido:", json);
 
-    // 2. Guardar el JSON obtenido previamente
-    await guardarJSON(json, 'muestra_faena.json');
-    console.log("JSON guardado exitosamente.");
+    // Bucle para pedir y guardar los JSON de cada URL en config.urls
+    for(const clave in config.urls){
+        // Obtiene la URL
+        const url = config.urls[clave];
+        console.log(`Obteniendo JSON desde: ${url}`);
+        // Guarda el JSON en una archivo 'muestra_clave.json' en la carpeta data/
+        const json = await obtenerJSON(url);
+        await guardarJSON(json, `muestra_${clave}.json`);
+    }
 
 } catch (error) {
     // Si el error es HTTP (viene de obtenerJSON o alguna petición interna)
