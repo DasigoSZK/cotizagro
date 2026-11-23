@@ -4,6 +4,3 @@ node_modules/
 .env
 # Datos generados por el recolector
 data/*.json
-
-# Archivos de prueba
-probar_calculos.js

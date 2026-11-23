@@ -67,3 +67,44 @@ export function resumenGrupo(subcategorias){
     return { actual, promedio, minimo, maximo };
 }
 
+// armarGrupo
+// Usa "resumenGrupo" y "src/categorias.js" para armar un objeto con los datos procesados de cada categoría
+export function armarGrupo(datosFuente, grupoRef){
+
+    // 1. Por cada categoría dentro de un grupo (macho o hembra o vientre o faena)
+    const datosAgrupados = grupoRef.categorias.map((categoriaRef)=>{
+
+        // 1.1. Filtrar los datos correspondientes a cada categoría
+        const datosFuenteFiltrados = datosFuente.filter(objFuente => 
+            categoriaRef.subcategorias.includes(objFuente.categoria) 
+        );
+
+        // 1.2. Validar que no falten subcategorías (por si la fuente cambia)
+        const faltantes = categoriaRef.subcategorias.filter(nombreRef => !datosFuenteFiltrados.some(subFiltrada => subFiltrada.categoria === nombreRef));
+        
+        if(faltantes.length !== 0){
+            const nombreCat = categoriaRef.nombre,
+            cantEsperada = categoriaRef.subcategorias.length,
+            cantFiltrada = datosFuenteFiltrados.length;
+
+            throw new Error(
+                `Error al filtrar las subcategorías de '${nombreCat}' en 'armarGrupo': ` +
+                `se esperaban ${cantEsperada}, se encontraron ${cantFiltrada}. ` +
+                `Faltan: ${faltantes.join(', ')}.`
+            );
+        }
+
+        // 1.3. Devuelve un objeto resumen, desestructurando el objeto que devuelve 'resumenGrupo'
+        const resumen = resumenGrupo(datosFuenteFiltrados);
+        return {nombre: categoriaRef.nombre, ...resumen}
+
+    });
+
+    // 2. Devuelve un GRUPO COMPLETO con todas sus categorías y resumenes
+    return {
+        unidad: grupoRef.unidad,
+        categorias: datosAgrupados
+    }
+        
+}
+

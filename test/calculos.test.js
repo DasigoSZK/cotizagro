@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {precioPonderado, resumenGrupo} from './../src/calculos.js';
+import {precioPonderado, resumenGrupo, armarGrupo} from './../src/calculos.js';
 
 // Notas: Función "test()"
 // "test()" recibe -> 1. string, 2. función
@@ -112,4 +112,85 @@ test('resumenGrupo: sin ventas en ninguna semana → todo null', () => {
     assert.equal(resultado.promedio, null);
     assert.equal(resultado.minimo,   null);
     assert.equal(resultado.maximo,   null);
+});
+
+// -----------------------------------------------------------------------------------
+
+
+// Test 8: "armarGrupo" -> caso normal (fuentes sin errores) con 2 categorías
+test('armarGrupo: caso normal con 2 categorías', ()=>{
+
+    // valores para "datosFuente"
+    const datosFuente = [
+        { categoria: 'A', precio_semana_1: 100, cantidad_semana_1: 10,
+                          precio_semana_2: 110, cantidad_semana_2: 10,
+                          precio_semana_3: 120, cantidad_semana_3: 10 },
+        { categoria: 'B', precio_semana_1: 200, cantidad_semana_1: 20,
+                          precio_semana_2: 210, cantidad_semana_2: 20,
+                          precio_semana_3: 220, cantidad_semana_3: 20 }
+    ];
+
+    // valores para "grupoRef"
+    const grupoRef = {
+        unidad: '$/kg',
+        categorias: [
+            { nombre: 'Cat A', subcategorias: ['A'] },
+            { nombre: 'Cat B', subcategorias: ['B'] }
+        ]
+    };
+
+    const res = armarGrupo(datosFuente, grupoRef);
+
+    // Verificaciones de los resultados
+    assert.equal(res.unidad, "$/kg");
+    assert.equal(res.categorias.length, 2);
+
+    assert.equal(res.categorias[0].nombre, "Cat A");
+    assert.equal(res.categorias[0].actual, 100);
+    assert.equal(res.categorias[0].promedio, 110);
+    assert.equal(res.categorias[0].minimo, 100);
+    assert.equal(res.categorias[0].maximo, 120);
+
+    assert.equal(res.categorias[1].nombre, "Cat B");
+    assert.equal(res.categorias[1].actual, 200);
+    assert.equal(res.categorias[1].promedio, 210);
+    assert.equal(res.categorias[1].minimo, 200);
+    assert.equal(res.categorias[1].maximo, 220);
+
+});
+
+// Test 9: "armarGrupo" -> caso de error controlado (fuentes cambiaron)
+test("armarGrupo: caso de error (los datosFuente cambian)", ()=>{
+    // valores para "datosFuente"
+    const datosFuente = [
+        { 
+            categoria: 'A', 
+            precio_semana_1: 100, cantidad_semana_1: 10,
+            precio_semana_2: 110, cantidad_semana_2: 10,
+            precio_semana_3: 120, cantidad_semana_3: 10 
+        },
+        { 
+            categoria: 'C', 
+            precio_semana_1: 100, cantidad_semana_1: 10,
+            precio_semana_2: 110, cantidad_semana_2: 10,
+            precio_semana_3: 120, cantidad_semana_3: 10  
+        }
+    ];
+
+    // valores para "grupoRef"
+    const grupoRef = {
+        unidad: '$/kg',
+        categorias: [
+            { nombre: 'Cat A', subcategorias: ['A'] },
+            { nombre: 'Cat B', subcategorias: ['B'] }   // ← B no está en datosFuente
+        ]
+    };
+
+
+    // Comprueba que el mensaje del error menciona la categoría "/CatB/" (sin comillas, /CatB/ es una "regex")
+    assert.throws(
+        ()=> armarGrupo(datosFuente, grupoRef),
+        /Cat B/
+    );
+
 });
