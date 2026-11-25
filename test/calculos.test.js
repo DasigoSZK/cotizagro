@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {precioPonderado, resumenGrupo, armarGrupo} from './../src/calculos.js';
+import categorias from '../src/categorias.js';
 
 // Notas: Función "test()"
 // "test()" recibe -> 1. string, 2. función
@@ -194,3 +195,15 @@ test("armarGrupo: caso de error (los datosFuente cambian)", ()=>{
     );
 
 });
+
+// -----------------------------------------------------------------------------------
+
+// Test 10: "categorias.js" -> verifica que ningun valor del objeto tenga espacios extras
+test('categorias.js: ningún nombre tiene espacios al inicio o al final', ()=>{
+    console.log(Object.values(categorias));
+    for (const grupo of Object.values(categorias)){
+        for(const cat of grupo.categorias){
+            assert.equal(cat.nombre, cat.nombre.trim(), `Nombre con espacios: ${cat.nombre}`);
+        }
+    }
+})

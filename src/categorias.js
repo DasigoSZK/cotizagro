@@ -35,13 +35,13 @@ export default {
                 ]
             },
             {
-                nombre: 'Vaquillonas 210-290 kg  ',
+                nombre: 'Vaquillonas 210-290 kg',
                 subcategorias: [
                     'Vaquillonas 210-250 Kg.', 'Vaquillonas 250-290 Kg.'
                 ]
             },
             {
-                nombre: 'Vaquillonas +290 kg  ',
+                nombre: 'Vaquillonas +290 kg',
                 subcategorias: [
                     'Vaquillonas +290 Kg.'
                 ]
@@ -70,7 +70,7 @@ export default {
                 ]
             },
             {
-                nombre: 'Vacas de invernada ',
+                nombre: 'Vacas de invernada',
                 subcategorias: [
                     'Vacas de Invernada'
                 ]
@@ -81,7 +81,7 @@ export default {
         unidad: '$/kg',
         categorias: [
             {
-                nombre: 'Novillitos hasta 390 kg ',
+                nombre: 'Novillitos hasta 390 kg',
                 subcategorias: [
                     'Novillitos hasta 390 Kg.'
                 ]
@@ -93,7 +93,7 @@ export default {
                 ]
             },
             {
-                nombre: 'Vaquillonas hasta 390 kg ',
+                nombre: 'Vaquillonas hasta 390 kg',
                 subcategorias: [
                     'Vaquillonas hasta 390 Kg.'
                 ]
