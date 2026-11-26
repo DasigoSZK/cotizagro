@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {precioPonderado, resumenGrupo, armarGrupo} from './../src/calculos.js';
+import {precioPonderado, resumenGrupo, armarGrupo, armarPrecios} from './../src/calculos.js';
 import categorias from '../src/categorias.js';
 
 // Notas: Función "test()"
@@ -200,10 +200,54 @@ test("armarGrupo: caso de error (los datosFuente cambian)", ()=>{
 
 // Test 10: "categorias.js" -> verifica que ningun valor del objeto tenga espacios extras
 test('categorias.js: ningún nombre tiene espacios al inicio o al final', ()=>{
-    console.log(Object.values(categorias));
     for (const grupo of Object.values(categorias)){
         for(const cat of grupo.categorias){
             assert.equal(cat.nombre, cat.nombre.trim(), `Nombre con espacios: ${cat.nombre}`);
         }
     }
+})
+
+// -----------------------------------------------------------------------------------
+
+// Test 11: "armarPrecios" -> verifica que se cree un objeto con 
+// { actualizado: '...', invernada: { machos: {}, hembras: {}, vientres: {} }, faena: {} }
+function generarDatosMinimos() {
+    const datos = {};
+    for (const [grupo, def] of Object.entries(categorias)) {
+        datos[grupo] = def.categorias.flatMap(cat =>
+            cat.subcategorias.map(sub => ({
+                categoria: sub,
+                precio_semana_1: 100, cantidad_semana_1: 10,
+                precio_semana_2: 100, cantidad_semana_2: 10,
+                precio_semana_3: 100, cantidad_semana_3: 10
+            }))
+        );
+    }
+    return datos;
+}
+test('armarPrecios: estructura correcta con datos mínimos', ()=> {
+
+    // Fecha fija (inyección de dependencias, la función es "pura")
+    const fechaFija = '2026-11-24T00:00:00.000Z';
+    // Genera datos mínimos de prueba para que "armarGrupo" no lance error 
+    // por no tener todas las subcategorías presentes en los datos 
+    const datos = generarDatosMinimos();
+
+    const resultado = armarPrecios(datos, fechaFija);
+
+    // Verifica que el objeto tenga exactamente la fecha que le pasamos
+    assert.equal(resultado.actualizado, fechaFija);
+
+    // Verifica que el "primer nivel del objeto"
+    assert.deepEqual(Object.keys(resultado), ['actualizado', 'invernada', 'faena']);
+
+    // Verifica el nivel de "resultado.invernada"
+    assert.deepEqual(
+        Object.keys(resultado.invernada).sort(),
+        ['hembras', 'machos', 'vientres']  // .sort() para no depender del orden
+    );
+
+    // Verifica el nivel de "resultado.faena"
+    assert.equal(resultado.faena.unidad, '$/kg');
+    assert.equal(resultado.faena.categorias.length, 4);
 })

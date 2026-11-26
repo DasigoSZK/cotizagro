@@ -1,9 +1,17 @@
-// Calcula el precio ponderado (promedio que tiene en cuenta la cantidad) para:
-// una categoría específica (conjunto de subcategorías) de una semana específica
+import categorias from './categorias.js';
 
-// Nota: 
-// Categoría = "Terneros 160-260 kg"
-// Subcategorias = "Terneros 160-200 kg" | Subcategoria = "Terneros 200-260 kg" | ...
+// Cadena de uso de funciones de calculos.js:
+// armarPrecios --usa-> armarGrupo --usa-> resumenGrupo --usa-> precioPonderado
+
+/*
+ * armarGrupo()       → Agrupa las subcategorías según las categorías definidas.
+ * resumenGrupo()     → Calcula actual, promedio, mínimo y máximo (para una categoría, considerando sus distintas subcategorías y semanas).
+ * precioPonderado()  → Calcula el precio promedio ponderado (para varias subcategorías en una semana determinada).
+ *
+ * Flujo: armarGrupo() → resumenGrupo() → precioPonderado()
+ */
+
+
 export function precioPonderado(subcategorias, semana){
 
     // 0. Fórmula: PW_s = Σ(precio_s × cantidad_s) / Σ(cantidad_s)
@@ -35,11 +43,6 @@ export function precioPonderado(subcategorias, semana){
     return sumaPonderada / sumaCantidad;
 }
 
-
-// resumenGrupo
-// Usa "precioPonderado" para calcular el PW de cada semana de una categoría
-// y devuelve { actual, promedio, minimo, maximo } de esa categoría.
-// Los cuatro valores salen redondeados a pesos enteros. Si no hay ventas, son null.
 export function resumenGrupo(subcategorias){
 
     // 1. Calcula los 3 ponderados (uno por semana)
@@ -67,8 +70,6 @@ export function resumenGrupo(subcategorias){
     return { actual, promedio, minimo, maximo };
 }
 
-// armarGrupo
-// Usa "resumenGrupo" y "src/categorias.js" para armar un objeto con los datos procesados de cada categoría
 export function armarGrupo(datosFuente, grupoRef){
 
     // 1. Por cada categoría dentro de un grupo (macho o hembra o vientre o faena)
@@ -107,4 +108,49 @@ export function armarGrupo(datosFuente, grupoRef){
     }
         
 }
+
+export function armarPrecios(datosPorGrupo, fecha){
+
+    // 1. Arma la estructura inicial del objeto resultado
+    const resultado = {
+        actualizado: fecha,
+        invernada: {}
+    }
+
+    // 2. Recorre cada grupo en "datosPorGrupo" (grupo = machos: [...])
+    for (const [claveGrupo, data] of Object.entries(datosPorGrupo)){
+
+        // 2.1. Arma cada grupo "machos: { unidad: '$/kg', categorias: [Array] }"
+        const grupo = armarGrupo(data, categorias[claveGrupo]);
+        if(claveGrupo === 'faena'){
+            resultado.faena = grupo;
+        }else{
+            resultado.invernada[claveGrupo] = grupo;
+        }
+
+    }
+
+    // 3. Devuelve:
+    /*
+    {
+        actualizado: '26/11/2026',
+        invernada: {
+            machos: { unidad: '$/kg', categorias: [Array] },
+            hembras: { unidad: '$/kg', categorias: [Array] },
+            vientres: { unidad: '$/cabeza', categorias: [Array] }
+        },
+        faena: {
+            unidad: '$/kg',
+            categorias: [ [Object], [Object], [Object], [Object] ]
+        }
+    }
+    */
+    return resultado;
+}
+
+
+
+
+
+
 
