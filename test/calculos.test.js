@@ -209,7 +209,7 @@ test('categorias.js: ningún nombre tiene espacios al inicio o al final', ()=>{
 
 // -----------------------------------------------------------------------------------
 
-// Test 11: "armarPrecios" -> verifica que se cree un objeto con 
+// Test 11: "armarPrecios" -> verifica que se cree un objeto con: 
 // { actualizado: '...', invernada: { machos: {}, hembras: {}, vientres: {} }, faena: {} }
 function generarDatosMinimos() {
     const datos = {};
